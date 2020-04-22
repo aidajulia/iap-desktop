@@ -112,6 +112,7 @@
     <Compile Include="TestBigEndian.cs" />
     <Compile Include="TestLinqExtensions.cs" />
     <Compile Include="TestVmInstanceReference.cs" />
+    <Compile Include="Text\TestAnsiScanner.cs" />
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>
