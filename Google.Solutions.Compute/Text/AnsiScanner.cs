@@ -30,6 +30,8 @@ namespace Google.Solutions.Compute.Text
 {
     public struct AnsiTextToken
     {
+        public static string ClearEntireScreen = "[2J";
+
         public enum TokenType
         {
             Text,

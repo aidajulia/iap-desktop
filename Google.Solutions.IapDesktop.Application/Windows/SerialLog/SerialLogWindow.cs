@@ -22,8 +22,10 @@
 using Google.Apis.Auth.OAuth2.Responses;
 using Google.Solutions.Compute;
 using Google.Solutions.Compute.Extensions;
+using Google.Solutions.Compute.Text;
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -46,8 +48,11 @@ namespace Google.Solutions.IapDesktop.Application.Windows.SerialLog
             this.Instance = vmInstance;
         }
 
-        internal void TailSerialPortStream(SerialPortStream stream)
+        internal void TailSerialPortStream(IAsyncReader<string> stream)
         {
+            // The data could have ANSI control sequences embedded, so parse that.
+            var scanner = new AnsiScanner(stream);
+
             Task.Run(async () =>
             {
                 bool exceptionCaught = false;
@@ -56,29 +61,47 @@ namespace Google.Solutions.IapDesktop.Application.Windows.SerialLog
                     // Check if we can continue to tail.
                     this.keepTailing.WaitOne();
 
-                    string newOutput;
+                    var newOutput = new StringBuilder();
                     try
                     {
-                        newOutput = await stream.ReadAsync();
-                        newOutput = newOutput.Replace("\n", "\r\n");
+                        var tokens = await scanner.ReadAsync();
+                        if (tokens == null)
+                        {
+                            return;
+                        }
+
+                        foreach (var token in tokens)
+                        {
+                            if (token.Type == AnsiTextToken.TokenType.Text)
+                            {
+                                newOutput.Append(token.Value.Replace("\n", "\r\n"));
+                            }
+                            else if (token.Type == AnsiTextToken.TokenType.Command && 
+                                     token.Value == AnsiTextToken.ClearEntireScreen)
+                            {
+                                // This is the only command worth interpreting, all other commands
+                                // are basically junk.
+                                newOutput.Append("\r\n");
+                            }
+                        }
                     }
                     catch (TokenResponseException e)
                     {
-                        newOutput = "Reading from serial port failed - session timed out " +
-                            $"({e.Error.ErrorDescription})";
+                        newOutput.Append("Reading from serial port failed - session timed out " +
+                            $"({e.Error.ErrorDescription})");
                         exceptionCaught = true;
                     }
                     catch (Exception e)
                     {
-                        newOutput = $"Reading from serial port failed: {e.Unwrap().Message}";
+                        newOutput.Append($"Reading from serial port failed: {e.Unwrap().Message}");
                         exceptionCaught = true;
                     }
 
                     // By the time we read the data, the form might have begun closing. In this
                     // case, updating the UI would cause an exception.
-                    if (!this.formClosing)
+                    if (!this.formClosing && newOutput.Length > 0)
                     {
-                        BeginInvoke((Action)(() => this.log.AppendText(newOutput)));
+                        BeginInvoke((Action)(() => this.log.AppendText(newOutput.ToString())));
                     }
 
                     Thread.Sleep(TimeSpan.FromSeconds(1));

@@ -20,6 +20,7 @@
 //
 
 using Google.Apis.Compute.v1;
+using Google.Solutions.Compute.Text;
 using System.Threading.Tasks;
 
 namespace Google.Solutions.Compute.Extensions
@@ -57,7 +58,7 @@ namespace Google.Solutions.Compute.Extensions
         }
     }
 
-    public class SerialPortStream
+    public sealed class SerialPortStream : IAsyncReader<string>
     {
         private readonly InstancesResource instancesResource;
         private readonly VmInstanceReference instance;
@@ -74,6 +75,10 @@ namespace Google.Solutions.Compute.Extensions
             this.instancesResource = instancesResource;
             this.port = port;
             this.instance = instanceRef;
+        }
+
+        public void Dispose()
+        {
         }
 
         public async Task<string> ReadAsync()
